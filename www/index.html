@@ -2,13 +2,13 @@
 <html lang="it">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Comandia Cameriere</title>
 <style>
   :root { --blu:#3064e8; --blu-chiaro:#eaf0fe; --ink:#101828; --grigio:#667085; --bordo:#e4e7ec; --sfondo:#f7f8fa; --verde:#12b76a; --rosso:#f04438; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  body { font-family:system-ui,-apple-system,sans-serif; margin:0; background:var(--sfondo); color:var(--ink); padding-bottom:170px; }
-  header { background:#fff; border-bottom:1px solid var(--bordo); padding:10px 12px; position:sticky; top:0; z-index:10; display:flex; align-items:center; gap:8px; }
+  body { font-family:system-ui,-apple-system,sans-serif; margin:0; background:var(--sfondo); color:var(--ink); padding-bottom:calc(170px + env(safe-area-inset-bottom)); }
+  header { background:#fff; border-bottom:1px solid var(--bordo); padding:calc(10px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) 10px calc(12px + env(safe-area-inset-left)); position:sticky; top:0; z-index:10; display:flex; align-items:center; gap:8px; }
   .logo { width:32px; height:32px; min-width:32px; border-radius:9px; background:var(--blu); color:#fff; font-weight:800; font-size:16px; display:flex; align-items:center; justify-content:center; }
   .chip { padding:8px 12px; border-radius:999px; border:1px solid var(--bordo); background:#fff; font-weight:600; font-size:13px; color:var(--ink); white-space:nowrap; }
   .chip:active { background:var(--blu-chiaro); }
@@ -29,7 +29,7 @@
   .tile b { display:block; line-height:1.2; }
   .tile .prezzo { color:var(--blu); font-weight:800; margin-top:5px; font-size:12.5px; }
   .tile .nqty { position:absolute; top:-6px; right:-4px; background:var(--verde); color:#fff; min-width:22px; height:22px; border-radius:999px; font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:center; padding:0 5px; }
-  .carrello { position:fixed; bottom:0; left:0; right:0; background:#fff; border-top:1px solid var(--bordo); padding:8px 12px 14px; box-shadow:0 -4px 20px rgba(0,0,0,0.08); }
+  .carrello { position:fixed; bottom:0; left:0; right:0; background:#fff; border-top:1px solid var(--bordo); padding:8px calc(12px + env(safe-area-inset-right)) calc(14px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left)); box-shadow:0 -4px 20px rgba(0,0,0,0.08); }
   .car-righe { max-height:30vh; overflow-y:auto; }
   .car-riga { display:flex; align-items:center; gap:6px; padding:6px 0; border-bottom:1px dashed var(--bordo); font-size:14px; }
   .car-riga .nome { flex:1; font-weight:600; min-width:0; }
@@ -45,6 +45,22 @@
   .invia { width:100%; margin-top:8px; padding:15px; border:none; border-radius:12px; background:var(--blu); color:#fff; font-size:17px; font-weight:800; }
   .invia:disabled { opacity:0.4; }
   .vuoto { color:var(--grigio); text-align:center; padding:8px; font-size:13px; }
+  @media (prefers-reduced-motion: no-preference) {
+    .tile { transition: transform .08s, background .12s; }
+    .tile:active { transform: scale(.94); }
+    .cat, .chip, .chip-mini { transition: background .12s, border-color .12s, color .12s; }
+    .car-riga { animation: entraRiga .16s ease-out; }
+    @keyframes entraRiga { from { opacity:0; transform: translateX(10px); } to { opacity:1; transform:none; } }
+    .sheet { animation: saleSheet .22s cubic-bezier(.2,.9,.3,1); }
+    @keyframes saleSheet { from { transform: translateY(40px); opacity:.4; } to { transform:none; opacity:1; } }
+    .sheet-sfondo { animation: dissolve .14s ease-out; }
+    @keyframes dissolve { from { opacity:0; } to { opacity:1; } }
+    .ok-big { animation: pop .25s cubic-bezier(.2,.9,.3,1.2); }
+    @keyframes pop { from { transform: scale(.8); opacity:0; } to { transform:none; opacity:1; } }
+    .ok-big .segno { animation: rimbalzo .5s ease-out; }
+    @keyframes rimbalzo { 0%{transform:scale(0)} 60%{transform:scale(1.25)} 100%{transform:scale(1)} }
+    #spiaConn { transition: background .3s; }
+  }
   body.testo-grande { font-size:17px; }
   body.testo-grande .tile b { font-size:15px; }
   body.testo-grande .tile .prezzo { font-size:14px; }
@@ -118,7 +134,7 @@
     <h2 style="margin:0 0 2px">Comandia Cameriere</h2>
     <div style="color:var(--grigio); font-size:12px; margin-bottom:8px;">versione v31</div>
     <p style="color:var(--grigio); font-size:14px;">Indirizzo della cassa<br>(app cassa → Impostazioni → App cameriere)</p>
-    <input id="cfgIp" placeholder="es. 192.168.43.10" inputmode="decimal" style="width:100%; font-size:18px; text-align:center;">
+    <input id="cfgIp" placeholder="es. 192.168.43.10" inputmode="text" autocapitalize="off" autocorrect="off" style="width:100%; font-size:18px; text-align:center;">
     <input id="cfgPin" placeholder="PIN di abbinamento (se impostato in cassa)" inputmode="numeric" style="width:100%; font-size:16px; text-align:center; margin-top:8px;">
     <div id="cfgErr" style="color:var(--rosso); font-size:13px; margin-top:8px; display:none;"></div>
     <button onclick="salvaConfig()" style="width:100%; margin-top:12px; padding:14px; border:none; border-radius:12px; background:var(--blu); color:#fff; font-size:16px; font-weight:800;">Collegati alla cassa</button>
@@ -190,7 +206,7 @@ function mostraConfig(errore) {
   if (errore) { e.textContent = errore; e.style.display = 'block' } else { e.style.display = 'none' }
 }
 function salvaConfig() {
-  const ip = document.getElementById('cfgIp').value.trim().replace(/^https?:\/\//, '').replace(/[:\/].*$/, '')
+  const ip = document.getElementById('cfgIp').value.trim().replace(/,/g, '.').replace(/^https?:\/\//, '').replace(/[:\/].*$/, '')
   if (!ip) return
   localStorage.setItem('comandia-ip', ip)
   localStorage.setItem('comandia-pin', document.getElementById('cfgPin').value.trim())
