@@ -1,0 +1,49 @@
+name: Compila app iOS (IPA da firmare con Sideloadly)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Scarica il codice
+        uses: actions/checkout@v4
+
+      - name: Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Dipendenze
+        run: npm install
+
+      - name: Genera progetto iOS
+        run: |
+          npx cap add ios
+          node fix-ios.js
+          npx cap sync ios
+          node fix-ios.js
+
+      - name: Compila senza firma
+        run: |
+          cd ios/App
+          xcodebuild -workspace App.xcworkspace -scheme App -configuration Release \
+            -sdk iphoneos -derivedDataPath build \
+            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+
+      - name: Impacchetta IPA
+        run: |
+          cd ios/App
+          mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -qr Comandia-Cameriere.ipa Payload
+
+      - name: Pubblica IPA scaricabile
+        uses: actions/upload-artifact@v4
+        with:
+          name: Comandia-Cameriere-iOS
+          path: ios/App/Comandia-Cameriere.ipa
+          retention-days: 30
