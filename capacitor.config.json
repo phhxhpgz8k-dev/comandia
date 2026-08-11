@@ -1,0 +1,18 @@
+{
+  "appId": "it.gabbvox.comandia.cameriere",
+  "appName": "Comandia Cameriere",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true,
+    "allowNavigation": ["*"]
+  },
+  "android": {
+    "allowMixedContent": true
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}
