@@ -45,6 +45,14 @@
   .invia { width:100%; margin-top:8px; padding:15px; border:none; border-radius:12px; background:var(--blu); color:#fff; font-size:17px; font-weight:800; }
   .invia:disabled { opacity:0.4; }
   .vuoto { color:var(--grigio); text-align:center; padding:8px; font-size:13px; }
+  .tav-griglia { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px; padding:12px; }
+  .tav-tile { border:2px solid var(--bordo); background:#fff; border-radius:13px; padding:16px 10px; text-align:center; min-height:92px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; }
+  .tav-tile:active { transform:scale(.95); }
+  .tav-tile.occ { border-color:var(--blu); background:var(--blu-chiaro); }
+  .tav-nome { font-weight:800; font-size:16px; }
+  .tav-info { font-size:12px; color:var(--grigio); }
+  .tav-zona { font-size:11px; font-weight:800; letter-spacing:.6px; text-transform:uppercase; color:var(--grigio); padding:10px 14px 0; }
   @media (prefers-reduced-motion: no-preference) {
     .tile { transition: transform .08s, background .12s; }
     .tile:active { transform: scale(.94); }
@@ -97,8 +105,11 @@
   </div>
 </header>
 
-<div class="barra">
-  <select id="tavolo" onchange="renderGiaInviato(); salvaStato()"></select>
+<div id="vistaTavoli"></div>
+
+<div class="barra" id="barraOrdine">
+  <button class="chip" onclick="tornaAiTavoli()">⬅</button>
+  <b id="nomeTavolo" style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap"></b>
   <div class="coperti" title="Coperti a pagamento">
     <span style="font-size:11px;color:var(--grigio);font-weight:700">💶</span>
     <button onclick="cambiaCoperti(-1)">−</button>
@@ -132,7 +143,7 @@
   <div style="background:#fff; border:1px solid var(--bordo); border-radius:16px; padding:24px; width:100%; max-width:380px; text-align:center; margin:auto;">
     <div class="logo" style="margin:0 auto 10px; width:48px; height:48px; font-size:24px;">C</div>
     <h2 style="margin:0 0 2px">Comandia Cameriere</h2>
-    <div style="color:var(--grigio); font-size:12px; margin-bottom:8px;">versione v31</div>
+    <div style="color:var(--grigio); font-size:12px; margin-bottom:8px;">versione v36</div>
     <p style="color:var(--grigio); font-size:14px;">Indirizzo della cassa<br>(app cassa → Impostazioni → App cameriere)</p>
     <input id="cfgIp" placeholder="es. 192.168.43.10" inputmode="text" autocapitalize="off" autocorrect="off" style="width:100%; font-size:18px; text-align:center;">
     <input id="cfgPin" placeholder="PIN di abbinamento (se impostato in cassa)" inputmode="numeric" style="width:100%; font-size:16px; text-align:center; margin-top:8px;">
@@ -144,7 +155,7 @@
 </div>
 
 <script>
-const VERSIONE = 'v31'
+const VERSIONE = 'v36'
 const PORTA = 8931
 const AGGIUNTE = ['Poco', 'Tanto', 'Più', 'Meno', 'Senza', 'Extra']
 let dati = { prodotti: [], tavoli: [], operatori: [], ordini: [], aggiunte: {} }
@@ -154,6 +165,7 @@ let categoria = 'Tutte'
 let carrello = []
 let coperti = 0
 let persone = 0
+let tavoloSel = ''
 
 const ipSalvato = () => (localStorage.getItem('comandia-ip') || '').trim()
 const BASE = () => 'http://' + ipSalvato() + ':' + PORTA
@@ -163,9 +175,7 @@ const cameriere = () => localStorage.getItem('comandia-cameriere') || ''
 
 function salvaStato() {
   try {
-    localStorage.setItem('comandia-stato', JSON.stringify({
-      carrello, coperti, persone, tavoloId: document.getElementById('tavolo').value || '',
-    }))
+    localStorage.setItem('comandia-stato', JSON.stringify({ carrello, coperti, persone, tavoloId: tavoloSel }))
   } catch (e) {}
 }
 function ripristinaStato() {
@@ -174,7 +184,8 @@ function ripristinaStato() {
     if (Array.isArray(st.carrello)) carrello = st.carrello
     if (st.coperti) { coperti = st.coperti; document.getElementById('ncoperti').textContent = coperti }
     if (st.persone) { persone = st.persone; document.getElementById('npersone').textContent = persone }
-    return st.tavoloId || ''
+    tavoloSel = st.tavoloId || ''
+    return tavoloSel
   } catch (e) { return '' }
 }
 const vibra = (ms) => { try { navigator.vibrate && navigator.vibrate(ms) } catch (e) {} }
@@ -314,19 +325,63 @@ function applicaOpzioni() {
 
 function renderTutto() {
   document.getElementById('btnCameriere').textContent = '👤 ' + (cameriere() || 'Chi sei?')
-  renderTavoli(); renderCats(); renderGriglia(); renderCarrello(); renderGiaInviato()
+  renderVistaTavoli(); renderCats(); renderGriglia(); renderCarrello(); renderGiaInviato()
+  aggiornaVista()
 }
 
-function renderTavoli() {
-  const sel = document.getElementById('tavolo')
-  if (document.activeElement === sel) return // non rigenerare mentre il cameriere la sta usando
-  const val = sel.value
-  sel.innerHTML = '<option value="">— Scegli tavolo —</option>' +
-    dati.tavoli.map(t => {
-      const o = dati.ordini.find(x => x.tavoloId === t.id)
-      return `<option value="${t.id}">${t.nome}${o ? ' ● (' + o.righe.reduce((a, r) => a + r.qty, 0) + ' pz)' : ''}</option>`
-    }).join('')
-  if (val) sel.value = val
+function aggiornaVista() {
+  const picker = !tavoloSel
+  document.getElementById('vistaTavoli').style.display = picker ? 'block' : 'none'
+  for (const id of ['barraOrdine', 'giaInviato', 'cats', 'griglia', 'barraRicerca']) {
+    const el = document.getElementById(id)
+    if (el) el.style.display = picker ? 'none' : (id === 'giaInviato' ? el.style.display : '')
+  }
+  document.querySelector('.carrello').style.display = picker ? 'none' : 'block'
+  if (!picker) {
+    const t = dati.tavoli.find(x => x.id === tavoloSel)
+    document.getElementById('nomeTavolo').textContent = t ? t.nome : ''
+    renderGiaInviato()
+  }
+}
+
+function scegliTavolo(id) {
+  tavoloSel = id
+  vibra(15)
+  salvaStato()
+  aggiornaVista()
+}
+
+function tornaAiTavoli() {
+  tavoloSel = ''
+  salvaStato()
+  renderVistaTavoli()
+  aggiornaVista()
+}
+
+function renderVistaTavoli() {
+  const div = document.getElementById('vistaTavoli')
+  const zone = [...new Set(dati.tavoli.map(t => t.zona).filter(Boolean))]
+  const gruppo = (lista) => `<div class="tav-griglia">${lista.map(t => {
+    const o = dati.ordini.find(x => x.tavoloId === t.id)
+    const pz = o ? o.righe.reduce((a, r) => a + r.qty, 0) : 0
+    return `<button class="tav-tile ${o ? 'occ' : ''}" onclick="scegliTavolo('${t.id}')">
+      <div class="tav-nome">${t.nome}</div>
+      ${o
+        ? `<span class="tav-info" style="color:var(--blu);font-weight:700">● ${pz} pz${o.cameriere ? ' · ' + o.cameriere : ''}</span>`
+        : `<span class="tav-info">libero${t.posti ? ' · ' + t.posti + ' posti' : ''}</span>`}
+    </button>`
+  }).join('')}</div>`
+  let html = '<div class="tav-zona" style="padding-top:14px">Scegli il tavolo</div>'
+  if (zone.length) {
+    for (const z of [...zone, '']) {
+      const lista = dati.tavoli.filter(t => (t.zona || '') === z)
+      if (!lista.length) continue
+      html += `<div class="tav-zona">${z || 'Senza zona'}</div>` + gruppo(lista)
+    }
+  } else {
+    html += gruppo(dati.tavoli)
+  }
+  div.innerHTML = html
 }
 
 let giaAperto = null // null = usa il default dalle opzioni
@@ -336,7 +391,7 @@ function toggleGia() {
 }
 function renderGiaInviato() {
   const div = document.getElementById('giaInviato')
-  const tavoloId = document.getElementById('tavolo').value
+  const tavoloId = tavoloSel
   const o = dati.ordini.find(x => x.tavoloId === tavoloId)
   if (!o || o.righe.length === 0) { div.style.display = 'none'; giaAperto = null; return }
   div.style.display = 'block'
@@ -565,7 +620,7 @@ function apriCamerieri() {
 }
 
 async function richiediPreconto() {
-  const tavoloId = document.getElementById('tavolo').value
+  const tavoloId = tavoloSel
   if (!tavoloId) return
   try {
     const r = await fetch(conPin('/api/preconto'), {
@@ -591,8 +646,8 @@ async function invia(confermato) {
     apriCamerieri()
     return
   }
-  const tavoloId = document.getElementById('tavolo').value
-  if (!tavoloId) { vibra([60, 40, 60]); return alert('Scegli prima il tavolo!') }
+  const tavoloId = tavoloSel
+  if (!tavoloId) { vibra([60, 40, 60]); tornaAiTavoli(); return }
   if (opz.riepilogo === true && !confermato) {
     const nomeTav = (dati.tavoli.find(t => t.id === tavoloId) || {}).nome || ''
     const pezzi = carrello.filter(r => !r.sep).reduce((a, r) => a + r.qty, 0)
@@ -644,6 +699,7 @@ async function invia(confermato) {
     ok.innerHTML = '<div class="segno">✓</div><div>Comanda inviata!</div><div style="font-size:15px;font-weight:600">' + tavoloNome + '</div>'
     document.body.appendChild(ok)
     setTimeout(() => ok.remove(), 1400)
+    tornaAiTavoli()
     carica()
   } catch (e) {
     const coda = codaGet()
@@ -712,8 +768,8 @@ const tavoloSalvato = ripristinaStato()
 if (!ipSalvato()) mostraConfig()
 else {
   carica().then(() => {
-    if (tavoloSalvato) { document.getElementById('tavolo').value = tavoloSalvato; renderGiaInviato() }
     renderCarrello(); renderGriglia()
+    aggiornaVista()
     if (!cameriere()) apriCamerieri()
   })
   processaCoda()
